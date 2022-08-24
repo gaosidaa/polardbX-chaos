@@ -1,0 +1,41 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  namespace: default
+  name: network-workflow
+spec:
+  entry: entry
+  templates:
+    - name: entry
+      templateType: Serial
+      deadline: 200s
+      children:
+        - network-error
+    - name: network-task-in-serial-flow
+      templateType: NetworkChaos
+      deadline: 100s
+      networkChaos:
+        selector:
+          namespaces:
+            - default
+          labelSelectors:
+            polardbx/cn-type: rw
+        mode: one
+        action: delay
+        delay:
+          latency: 20ms
+          correlation: '0'
+          jitter: 0ms
+        direction: both
+        target:
+          selector:
+            namespaces:
+              - default
+            labelSelectors:
+              polardbx/dn-index: '0'
+          mode: one
+    - name: network-error
+      templateType: Serial
+      deadline: 120s
+      children:
+        - network-task-in-serial-flow

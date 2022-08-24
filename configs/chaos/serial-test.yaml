@@ -1,0 +1,43 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  namespace: default
+  name: serial-test
+spec:
+  entry: entry
+  templates:
+    - name: entry
+      templateType: Serial
+      deadline: 300s
+      children:
+        - serial-pod
+    - name: pod-kill
+      templateType: PodChaos
+      deadline: 100s
+      podChaos:
+        selector:
+          namespaces:
+            - default
+          labelSelectors:
+            polardbx/cn-type: rw
+        mode: one
+        action: pod-kill
+        gracePeriod: 0
+    - name: pod-failure-cn-2
+      templateType: PodChaos
+      deadline: 100s
+      podChaos:
+        selector:
+          namespaces:
+            - default
+          labelSelectors:
+            polardbx/cn-type: rw
+        mode: one
+        action: pod-failure
+        gracePeriod: 0
+    - name: serial-pod
+      templateType: Serial
+      deadline: 250s
+      children:
+        - pod-kill
+        - pod-failure-cn-2

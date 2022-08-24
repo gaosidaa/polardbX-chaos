@@ -1,0 +1,19 @@
+kind: PodChaos
+apiVersion: chaos-mesh.org/v1alpha1
+metadata:
+  namespace: default
+  name: pod-failure-cn-2
+spec:
+  selector:
+    namespaces:
+      - default
+    labelSelectors:
+      polardbx/cn-type: rw
+    pods:
+      default:
+        - polardb-x-px98-cn-default-644b786c55-fl9qw
+        - polardb-x-px98-cn-default-644b786c55-s2bcx
+  mode: all
+  action: pod-failure
+  duration: 120s
+  gracePeriod: 0
