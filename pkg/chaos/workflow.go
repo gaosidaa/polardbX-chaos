@@ -5,13 +5,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/chaos-mesh/chaos-mesh/api/v1alpha1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	MetaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"log"
 )
 
@@ -83,22 +83,22 @@ func (this *WorkflowBase) CreateWorkflow() error {
 		Object: obj,
 	}
 
-	oldUtd, err := client.DynamicClient.Resource(schema.GroupVersionResource{
+	oldUtd, err := this.Client.Resource(schema.GroupVersionResource{
 		Group:    WorkflowGroup,
 		Version:  WorkflowVersion,
 		Resource: WorkflowResource,
 	}).Namespace(utd.GetNamespace()).Get(context.TODO(), utd.GetName(), metav1.GetOptions{})
-	
-	if apierrors.IsNotFound(err){
+
+	if apierrors.IsNotFound(err) {
 		_, err = client.DynamicClient.Resource(schema.GroupVersionResource{
 			Group:    WorkflowGroup,
 			Version:  WorkflowVersion,
 			Resource: WorkflowResource,
 		}).Namespace(utd.GetNamespace()).Create(context.TODO(), &utd, metav1.CreateOptions{})
-	}else {
+	} else {
 		return fmt.Errorf("%s  已经存在 ", oldUtd.GetName())
 	}
-	
+
 	return nil
 }
 
@@ -119,6 +119,7 @@ func (this *WorkflowBase) DeleteWorkflow() error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
