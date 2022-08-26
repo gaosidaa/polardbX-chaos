@@ -161,3 +161,7 @@ func (this *PolarDB) InjectDynamicClient(client dynamic.Interface) *PolarDB {
 	this.Client = client
 	return this
 }
+
+func (this *PolarDB) GetStatus() {
+
+}
