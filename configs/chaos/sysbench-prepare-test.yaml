@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sysbench-prepare
+  namespace: default
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: sysbench-prepare
+          image: severalnines/sysbench
+          env:
+            - name: POLARDB_X_SERVICE_HOST
+              value: "172.16.138.204"
+            - name: POLARDB_X_SERVICE_PORT
+              value: "3306"
+            - name: POLARDB_X_USER
+              value: polardbx_root
+            - name: POLARDB_X_PASSWD
+              value: "pgzxtppml"
+          command: [ 'sysbench' ]
+          args:
+            - --db-driver=mysql
+            - --mysql-host=$(POLARDB_X_SERVICE_HOST)
+            - --mysql-port=$(POLARDB_X_SERVICE_PORT)
+            - --mysql-user=$(POLARDB_X_USER)
+            - --mysql_password=$(POLARDB_X_PASSWD)
+            - --mysql-db=sysbench_test
+            - --mysql-table-engine=innodb
+            - --rand-init=on
+            - --max-requests=1
+            - --oltp-tables-count=1
+            - --report-interval=5
+            - --oltp-table-size=1600000
+            - --oltp_skip_trx=on
+            - --oltp_auto_inc=off
+            - --oltp_secondary
+            - --oltp_range_size=5
+            - --mysql_table_options=dbpartition by hash(`id`)
+            - --num-threads=1
+            - --time=3600
+            - /usr/share/sysbench/tests/include/oltp_legacy/parallel_prepare.lua
+            - run

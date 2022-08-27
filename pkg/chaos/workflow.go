@@ -3,8 +3,10 @@ package chaos
 import (
 	"ChaosApi/pkg/client"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/chaos-mesh/chaos-mesh/api/v1alpha1"
+	CoreV1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	MetaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -82,6 +84,7 @@ func (this *WorkflowBase) CreateWorkflow() error {
 	utd := unstructured.Unstructured{
 		Object: obj,
 	}
+	this.DeleteWorkflow()
 
 	oldUtd, err := this.Client.Resource(schema.GroupVersionResource{
 		Group:    WorkflowGroup,
@@ -148,4 +151,37 @@ func NewWorkflow(base *WorkflowBase) *v1alpha1.Workflow {
 			Templates: base.Templates,
 		},
 	}
+}
+
+func (this *WorkflowBase) GetStatus() bool {
+	utd, err := this.Client.Resource(schema.GroupVersionResource{
+		Group:    WorkflowGroup,
+		Version:  WorkflowVersion,
+		Resource: WorkflowResource,
+	}).Namespace(this.Namespace).Get(context.TODO(), this.Name, metav1.GetOptions{})
+	if err !=nil {
+		fmt.Println(err)
+		return false
+	}
+	utdByte ,err :=utd.MarshalJSON()
+	if err !=nil {
+		fmt.Println(err)
+		return false
+	}
+	workflow :=&v1alpha1.Workflow{}
+	err = json.Unmarshal(utdByte,workflow)
+	if err !=nil {
+		fmt.Println(err)
+		return false
+	}
+
+
+	for _,item := range  workflow.Status.Conditions {
+		//fmt.Println(item.Status )
+		if item.Status == CoreV1.ConditionTrue && item.Type == v1alpha1.WorkflowConditionAccomplished {
+			return  true
+		}
+	}
+	return  false
+
 }

@@ -2,11 +2,13 @@ package pdbx
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	PolarDBV1 "github.com/alibaba/polardbx-operator/api/v1"
 	"github.com/alibaba/polardbx-operator/api/v1/common"
 	"github.com/alibaba/polardbx-operator/api/v1/polardbx"
 	CoreV1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	MetaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -17,16 +19,16 @@ import (
 	"log"
 )
 
-type PolarDB struct {
+type PolarDbBase struct {
 	Name   string
 	Client dynamic.Interface
 }
 
-func NewPolarDB(name string) *PolarDB {
-	return &PolarDB{Name: name}
+func NewPolarDbBase(name string) *PolarDbBase {
+	return &PolarDbBase{Name: name}
 }
 
-func (this *PolarDB) InitOjb() *PolarDBV1.PolarDBXCluster {
+func NewPolarDB(obj *PolarDbBase) *PolarDBV1.PolarDBXCluster {
 	HostNetworkOk := true
 	PolarDBClusterObj := PolarDBV1.PolarDBXCluster{
 		TypeMeta: MetaV1.TypeMeta{
@@ -34,9 +36,17 @@ func (this *PolarDB) InitOjb() *PolarDBV1.PolarDBXCluster {
 			Kind:       "PolarDBXCluster",
 		},
 		ObjectMeta: MetaV1.ObjectMeta{
-			Name: this.Name,
+			Name: obj.Name,
 		},
 		Spec: PolarDBV1.PolarDBXClusterSpec{
+			Privileges: []polardbx.PrivilegeItem{
+				{
+					Username: "root",
+					Password: "pgzxtppml",
+					Type:     polardbx.Super,
+				},
+			},
+			ServiceType:     CoreV1.ServiceTypeNodePort,
 			UpgradeStrategy: polardbx.RollingUpgradeStrategy,
 			Config: polardbx.Config{
 				DN: polardbx.DNConfig{
@@ -51,8 +61,10 @@ slave_exec_mode=SMART`,
 			Topology: polardbx.Topology{
 				Nodes: polardbx.TopologyNodes{
 					CDC: &polardbx.TopologyNodeCDC{
+
 						Replicas: 2,
 						Template: polardbx.CDCTemplate{
+
 							Resources: CoreV1.ResourceRequirements{
 								Limits: CoreV1.ResourceList{
 									CoreV1.ResourceCPU:    resource.MustParse("3"),
@@ -66,8 +78,10 @@ slave_exec_mode=SMART`,
 						},
 					},
 					CN: polardbx.TopologyNodeCN{
+
 						Replicas: 2,
 						Template: polardbx.CNTemplate{
+
 							Resources: CoreV1.ResourceRequirements{
 								Limits: CoreV1.ResourceList{
 									CoreV1.ResourceCPU:    resource.MustParse("5"),
@@ -83,6 +97,8 @@ slave_exec_mode=SMART`,
 					DN: polardbx.TopologyNodeDN{
 						Replicas: 2,
 						Template: polardbx.XStoreTemplate{
+							ServiceType: CoreV1.ServiceTypeClusterIP,
+
 							Engine:      "galaxy",
 							HostNetwork: &HostNetworkOk,
 							Resources: common.ExtendedResourceRequirements{
@@ -126,26 +142,43 @@ slave_exec_mode=SMART`,
 	return &PolarDBClusterObj
 }
 
-func (this *PolarDB) CreatePolarDB() {
+func (this *PolarDbBase) CreatePolarDB() error {
 
-	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(this.InitOjb())
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(NewPolarDB(this))
 	utd := unstructured.Unstructured{
 		Object: obj,
 	}
 	if err != nil {
 		log.Fatalln(err)
 	}
+
 	_, err = this.Client.Resource(schema.GroupVersionResource{
 		Group:    "polardbx.aliyun.com",
 		Version:  "v1",
 		Resource: "polardbxclusters",
-	}).Namespace("default").Create(context.TODO(), &utd, MetaV1.CreateOptions{})
+	}).Namespace("default").Get(context.TODO(), this.Name, MetaV1.GetOptions{})
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
+
+	if apierrors.IsNotFound(err) {
+		_, err = this.Client.Resource(schema.GroupVersionResource{
+			Group:    "polardbx.aliyun.com",
+			Version:  "v1",
+			Resource: "polardbxclusters",
+		}).Namespace("default").Create(context.TODO(), &utd, MetaV1.CreateOptions{})
+		if err != nil {
+			return err
+		}
+
+	} else {
+		return fmt.Errorf("%s  已经存在 ", this.Name)
+	}
+
+	return nil
 }
 
-func (this *PolarDB) DeletePolarDB() {
+func (this *PolarDbBase) DeletePolarDB() {
 	err := this.Client.Resource(schema.GroupVersionResource{
 		Group:    "polardbx.aliyun.com",
 		Version:  "v1",
@@ -157,11 +190,26 @@ func (this *PolarDB) DeletePolarDB() {
 	}
 }
 
-func (this *PolarDB) InjectDynamicClient(client dynamic.Interface) *PolarDB {
+func (this *PolarDbBase) InjectDynamicClient(client dynamic.Interface) *PolarDbBase {
 	this.Client = client
 	return this
 }
 
-func (this *PolarDB) GetStatus() {
+func (this *PolarDbBase) GetStatus() polardbx.Phase {
+	utd, err := this.Client.Resource(schema.GroupVersionResource{
+		Group:    "polardbx.aliyun.com",
+		Version:  "v1",
+		Resource: "polardbxclusters",
+	}).Namespace("default").Get(context.TODO(), this.Name, MetaV1.GetOptions{})
+	if err != nil {
+		return polardbx.PhaseUnknown
+	}
 
+	pdbxByte, _ := utd.MarshalJSON()
+	pdbxObj := &PolarDBV1.PolarDBXCluster{}
+	err = json.Unmarshal(pdbxByte, pdbxObj)
+	if err != nil {
+		return polardbx.PhaseUnknown
+	}
+	return pdbxObj.Status.Phase
 }
