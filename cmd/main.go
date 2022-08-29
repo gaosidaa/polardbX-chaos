@@ -137,7 +137,7 @@ func main() {
 				break
 			}
 
-			time.Sleep(15 * time.Second)
+			time.Sleep(35 * time.Second)
 
 			log, err := pod.GetLogs(podName)
 			if err != nil {

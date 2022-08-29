@@ -61,7 +61,7 @@ slave_exec_mode=SMART`,
 				Nodes: polardbx.TopologyNodes{
 					CDC: &polardbx.TopologyNodeCDC{
 
-						Replicas: 2,
+						Replicas: 3,
 						Template: polardbx.CDCTemplate{
 
 							Resources: CoreV1.ResourceRequirements{
@@ -78,7 +78,7 @@ slave_exec_mode=SMART`,
 					},
 					CN: polardbx.TopologyNodeCN{
 
-						Replicas: 4,
+						Replicas: 6,
 						Template: polardbx.CNTemplate{
 
 							Resources: CoreV1.ResourceRequirements{
@@ -94,7 +94,7 @@ slave_exec_mode=SMART`,
 						},
 					},
 					DN: polardbx.TopologyNodeDN{
-						Replicas: 2,
+						Replicas: 3,
 						Template: polardbx.XStoreTemplate{
 							ServiceType: CoreV1.ServiceTypeClusterIP,
 
