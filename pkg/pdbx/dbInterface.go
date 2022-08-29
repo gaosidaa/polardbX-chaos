@@ -78,7 +78,7 @@ slave_exec_mode=SMART`,
 					},
 					CN: polardbx.TopologyNodeCN{
 
-						Replicas: 2,
+						Replicas: 4,
 						Template: polardbx.CNTemplate{
 
 							Resources: CoreV1.ResourceRequirements{
