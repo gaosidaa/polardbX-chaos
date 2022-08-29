@@ -203,10 +203,15 @@ func main() {
 		}
 	}
 
-	fmt.Println(obj.DeletePolarDB(),
-		workflow1.DeleteWorkflow(),
-		bench.Delete(),
-		bench2.Delete())
+	//fmt.Println(obj.DeletePolarDB(),
+	//	workflow1.DeleteWorkflow(),
+	//	bench.Delete(),
+	//	bench2.Delete())
+	obj.DeletePolarDB()
+	workflow1.DeleteWorkflow()
+	bench.Delete()
+	bench2.Delete()
+
 
 }
 
