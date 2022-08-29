@@ -144,7 +144,7 @@ func main() {
 				fmt.Println(err)
 				break
 			}
-			fmt.Printf(" start qps %s \n :", log)
+			fmt.Printf(" start qps %s \n : \n", log)
 			break
 		}
 	}
