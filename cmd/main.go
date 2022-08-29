@@ -21,7 +21,8 @@ func main() {
 	podLabels["polardbx/cn-type"] = "rw"
 	ns := []string{"default"}
 
-	dynamicClient, err := client.InitDynamicClient("./configs/kube/config")
+	//dynamicClient, err := client.InitDynamicClient("./configs/kube/config")
+	dynamicClient, err := client.InitDynamicClient("/configs/config")
 	if err != nil {
 		log.Fatalln(err)
 	}
