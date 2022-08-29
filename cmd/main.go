@@ -189,7 +189,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("end sqs %s \n", log)
+	fmt.Printf("end sqs \n %s \n", log)
 
 	errPod := pod.ListPod(dynamicClient, map[string]string{
 		"polardbx/name": "polardb-x",
