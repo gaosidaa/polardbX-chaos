@@ -114,7 +114,7 @@ func main() {
 		"--oltp_secondary",
 		"--oltp_range_size=5",
 		"--mysql-ignore-errors=all",
-		"--num-threads=16",
+		"--num-threads=32",
 		"--time=3600000",
 		"/usr/share/sysbench/tests/include/oltp_legacy/oltp.lua",
 		"run",
