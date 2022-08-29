@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/alibaba/polardbx-operator v1.2.2
 	github.com/chaos-mesh/chaos-mesh/api/v1alpha1 v0.0.0-20220226050744-799408773657
+	github.com/go-sql-driver/mysql v1.6.0
 	k8s.io/api v0.25.0
 	k8s.io/apimachinery v0.25.0
 	k8s.io/client-go v0.25.0

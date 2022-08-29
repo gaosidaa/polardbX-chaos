@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"github.com/alibaba/polardbx-operator/api/v1/polardbx"
 	"github.com/chaos-mesh/chaos-mesh/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	"log"
+	"os"
 	"time"
 )
 
@@ -26,20 +28,73 @@ func main() {
 
 	obj := pdbx.NewPolarDbBase("polardb-x").InjectDynamicClient(dynamicClient)
 
-	obj.CreatePolarDB()
+	if obj.CreatePolarDB() != nil {
+		fmt.Printf("创建集群失败, err : %s", err)
+		return
+	}
 
 	var star int
 	for {
 		star++
 		if obj.GetStatus() == polardbx.PhaseRunning {
+			fmt.Println("集群创建成功")
 			break
 		}
 		time.Sleep(1 * time.Minute)
+
 		if star > 15 {
+			os.Exit(1)
+			fmt.Printf("集群异常, err : %s", err)
 			break
+		}
+
+	}
+
+	bench2 := sysbench.NewSysbench("sysbench-prepare").InjectDynamicClient(dynamicClient)
+	bench2.SetHost("polardb-x").SetArgs([]string{
+		"--db-driver=mysql",
+		"--mysql-host=$(POLARDB_X_SERVICE_HOST)",
+		"--mysql-port=$(POLARDB_X_SERVICE_PORT)",
+		"--mysql-user=$(POLARDB_X_USER)",
+		"--mysql_password=$(POLARDB_X_PASSWD)",
+		"--mysql-db=sysbench_test",
+		"--mysql-table-engine=innodb",
+		"--rand-init=on",
+		"--max-requests=1",
+		"--oltp-tables-count=1",
+		"--report-interval=5",
+		"--oltp-table-size=160000",
+		"--oltp_skip_trx=on",
+		"--oltp_auto_inc=off",
+		"--oltp_secondary",
+		"--oltp_range_size=5",
+		"--mysql_table_options=dbpartition by hash(`id`)",
+		"--num-threads=1",
+		"--time=3600",
+		"/usr/share/sysbench/tests/include/oltp_legacy/parallel_prepare.lua",
+		"run",
+	}).InitDatabase()
+
+	if bench2.Create() != nil {
+		fmt.Printf("sysbench-prepare 注入失败 ERR :%s", err)
+	}
+
+	fmt.Println("sysbench-prepare 注入成功")
+	for {
+		star++
+		if bench2.IsComplete() {
+			fmt.Println("数据注入成功")
+			break
+		}
+		time.Sleep(1 * time.Minute)
+
+		if star > 15 {
+			fmt.Printf("sysbench 数据注入失败")
+			os.Exit(1)
 		}
 	}
 
+	fmt.Println("开始注入 sysbench-oltp-test ")
 	bench := sysbench.NewSysbench("sysbench-oltp-test").InjectDynamicClient(dynamicClient)
 	bench.SetHost("polardb-x").SetArgs([]string{
 		"--db-driver=mysql",
@@ -68,32 +123,30 @@ func main() {
 	if bench.Create() != nil {
 		fmt.Printf("sysbench-oltp-test 注入失败 ERR :%s", err)
 	}
-	bench2 := sysbench.NewSysbench("sysbench-prepare").InjectDynamicClient(dynamicClient)
-	bench2.SetHost("polardb-x").SetArgs([]string{
-		"--db-driver=mysql",
-		"--mysql-host=$(POLARDB_X_SERVICE_HOST)",
-		"--mysql-port=$(POLARDB_X_SERVICE_PORT)",
-		"--mysql-user=$(POLARDB_X_USER)",
-		"--mysql_password=$(POLARDB_X_PASSWD)",
-		"--mysql-db=sysbench_test",
-		"--mysql-table-engine=innodb",
-		"--rand-init=on",
-		"--max-requests=1",
-		"--oltp-tables-count=1",
-		"--report-interval=5",
-		"--oltp-table-size=1600000",
-		"--oltp_skip_trx=on",
-		"--oltp_auto_inc=off",
-		"--oltp_secondary",
-		"--oltp_range_size=5",
-		"--mysql_table_options=dbpartition by hash(`id`)",
-		"--num-threads=1",
-		"--time=3600",
-		"/usr/share/sysbench/tests/include/oltp_legacy/parallel_prepare.lua",
-		"run",
-	})
-	if bench.Create() != nil {
-		fmt.Printf("sysbench-prepare 注入失败 ERR :%s", err)
+
+	for {
+		time.Sleep(1 * time.Minute)
+		star++
+		if star > 15 {
+			break
+		}
+		if bench.GetPhase() == corev1.PodRunning {
+			podName, err := bench.GetPodName()
+			if err != nil {
+				fmt.Println(err)
+				break
+			}
+
+			time.Sleep(5 * time.Second)
+
+			log, err := pod.GetLogs(podName)
+			if err != nil {
+				fmt.Println(err)
+				break
+			}
+			fmt.Printf(" start qps %s \n :", log)
+			break
+		}
 	}
 
 	// 初始化一个空的workflow 第一个参数为父工作流的名称,第二个参数为父工作流的命名空间,第三个参数子工作流的名称
@@ -128,8 +181,15 @@ func main() {
 		if star > 15 {
 			break
 		}
-
 	}
+
+	podName, err := bench.GetPodName()
+	log, err := pod.GetLogs(podName)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Printf("end sqs %s \n", log)
 
 	errPod := pod.ListPod(dynamicClient, map[string]string{
 		"polardbx/name": "polardb-x",
@@ -137,11 +197,16 @@ func main() {
 
 	if len(errPod) == 0 {
 		fmt.Println("全部pod恢复正常")
-	}else {
-		for _,pod := range  errPod {
-			fmt.Printf("%s 未恢复正常",pod)
+	} else {
+		for _, pod := range errPod {
+			fmt.Printf("%s 未恢复正常", pod)
 		}
 	}
+
+	fmt.Println(obj.DeletePolarDB(),
+		workflow1.DeleteWorkflow(),
+		bench.Delete(),
+		bench2.Delete())
 
 }
 
@@ -166,5 +231,3 @@ func main() {
 //		Jitter:      "0ms",
 //	})
 //s3 := workflow3.InjectTemplate(networkChaos).SetWorkflowType(v1alpha1.TypeSerial, "200s", "120s")
-
-

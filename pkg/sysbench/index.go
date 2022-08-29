@@ -5,11 +5,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	BatchV1 "k8s.io/api/batch/v1"
 	CoreV1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	MetaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -106,11 +108,48 @@ func (this *Sysbench) Create() error {
 			Version:  "v1",
 			Resource: "jobs",
 		}).Namespace(utd.GetNamespace()).Create(context.TODO(), &utd, MetaV1.CreateOptions{})
-			if err !=nil {
-				return err
-			}
+		if err != nil {
+			return err
+		}
 	}
+
 	return nil
+}
+
+func (this *Sysbench) GetPodName() (string, error) {
+	jobs, err := client.ClientSet.BatchV1().Jobs("default").Get(context.TODO(), this.Name, MetaV1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	pods, err := client.ClientSet.CoreV1().Pods("default").List(context.TODO(), MetaV1.ListOptions{
+		LabelSelector: labels.FormatLabels(jobs.Labels),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if len(pods.Items) == 0 {
+		return "", fmt.Errorf("pod还未创建")
+	}
+	return pods.Items[0].Name, nil
+
+}
+
+func (this *Sysbench) GetPhase() CoreV1.PodPhase {
+	jobs, err := client.ClientSet.BatchV1().Jobs("default").Get(context.TODO(), this.Name, MetaV1.GetOptions{})
+	if err != nil {
+
+		return ""
+	}
+	pods, err := client.ClientSet.CoreV1().Pods("default").List(context.TODO(), MetaV1.ListOptions{
+		LabelSelector: labels.FormatLabels(jobs.Labels),
+	})
+	if err != nil {
+
+		return ""
+	}
+	return pods.Items[0].Status.Phase
+
 }
 
 func (this *Sysbench) Delete() error {
@@ -120,6 +159,15 @@ func (this *Sysbench) Delete() error {
 	}
 	utd := unstructured.Unstructured{
 		Object: obj,
+	}
+	podName, err := this.GetPodName()
+	if err != nil {
+		fmt.Println(err)
+		return fmt.Errorf("获取pod ERR:%v", err)
+	}
+	err = client.ClientSet.CoreV1().Pods(utd.GetNamespace()).Delete(context.TODO(), podName, MetaV1.DeleteOptions{})
+	if err != nil {
+		return err
 	}
 
 	err = this.Client.Resource(schema.GroupVersionResource{
@@ -145,10 +193,28 @@ func (this *Sysbench) InitDatabase() error {
 		fmt.Println(err)
 	}
 	defer db.Close()
-
+	_, err = db.Exec("Drop DATABASE sysbench_test")
+	if err != nil {
+	}
 	_, err = db.Exec("CREATE DATABASE sysbench_test")
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (this *Sysbench) IsComplete() bool {
+	jobs, err := client.ClientSet.BatchV1().Jobs("default").Get(context.TODO(), this.Name, MetaV1.GetOptions{})
+	if err != nil {
+
+		return false
+	}
+
+	for _, jobConditions := range jobs.Status.Conditions {
+
+		if jobConditions.Status == CoreV1.ConditionTrue && jobConditions.Type == BatchV1.JobComplete {
+			return true
+		}
+	}
+	return false
 }

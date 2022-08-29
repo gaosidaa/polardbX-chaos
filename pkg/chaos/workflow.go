@@ -159,29 +159,28 @@ func (this *WorkflowBase) GetStatus() bool {
 		Version:  WorkflowVersion,
 		Resource: WorkflowResource,
 	}).Namespace(this.Namespace).Get(context.TODO(), this.Name, metav1.GetOptions{})
-	if err !=nil {
+	if err != nil {
 		fmt.Println(err)
 		return false
 	}
-	utdByte ,err :=utd.MarshalJSON()
-	if err !=nil {
+	utdByte, err := utd.MarshalJSON()
+	if err != nil {
 		fmt.Println(err)
 		return false
 	}
-	workflow :=&v1alpha1.Workflow{}
-	err = json.Unmarshal(utdByte,workflow)
-	if err !=nil {
+	workflow := &v1alpha1.Workflow{}
+	err = json.Unmarshal(utdByte, workflow)
+	if err != nil {
 		fmt.Println(err)
 		return false
 	}
 
+	for _, item := range workflow.Status.Conditions {
 
-	for _,item := range  workflow.Status.Conditions {
-		//fmt.Println(item.Status )
 		if item.Status == CoreV1.ConditionTrue && item.Type == v1alpha1.WorkflowConditionAccomplished {
-			return  true
+			return true
 		}
 	}
-	return  false
+	return false
 
 }

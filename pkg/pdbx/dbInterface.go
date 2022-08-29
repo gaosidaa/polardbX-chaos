@@ -8,7 +8,6 @@ import (
 	"github.com/alibaba/polardbx-operator/api/v1/common"
 	"github.com/alibaba/polardbx-operator/api/v1/polardbx"
 	CoreV1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	MetaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -46,7 +45,7 @@ func NewPolarDB(obj *PolarDbBase) *PolarDBV1.PolarDBXCluster {
 					Type:     polardbx.Super,
 				},
 			},
-			ServiceType:     CoreV1.ServiceTypeNodePort,
+			ServiceType:     CoreV1.ServiceTypeClusterIP,
 			UpgradeStrategy: polardbx.RollingUpgradeStrategy,
 			Config: polardbx.Config{
 				DN: polardbx.DNConfig{
@@ -152,33 +151,26 @@ func (this *PolarDbBase) CreatePolarDB() error {
 		log.Fatalln(err)
 	}
 
+	//_, err = this.Client.Resource(schema.GroupVersionResource{
+	//	Group:    "polardbx.aliyun.com",
+	//	Version:  "v1",
+	//	Resource: "polardbxclusters",
+	//}).Namespace("default").Get(context.TODO(), this.Name, MetaV1.GetOptions{})
+
+
 	_, err = this.Client.Resource(schema.GroupVersionResource{
 		Group:    "polardbx.aliyun.com",
 		Version:  "v1",
 		Resource: "polardbxclusters",
-	}).Namespace("default").Get(context.TODO(), this.Name, MetaV1.GetOptions{})
+	}).Namespace("default").Create(context.TODO(), &utd, MetaV1.CreateOptions{})
 	if err != nil {
+		fmt.Println(err)
 		return err
 	}
-
-	if apierrors.IsNotFound(err) {
-		_, err = this.Client.Resource(schema.GroupVersionResource{
-			Group:    "polardbx.aliyun.com",
-			Version:  "v1",
-			Resource: "polardbxclusters",
-		}).Namespace("default").Create(context.TODO(), &utd, MetaV1.CreateOptions{})
-		if err != nil {
-			return err
-		}
-
-	} else {
-		return fmt.Errorf("%s  已经存在 ", this.Name)
-	}
-
 	return nil
 }
 
-func (this *PolarDbBase) DeletePolarDB() {
+func (this *PolarDbBase) DeletePolarDB() error {
 	err := this.Client.Resource(schema.GroupVersionResource{
 		Group:    "polardbx.aliyun.com",
 		Version:  "v1",
@@ -186,8 +178,9 @@ func (this *PolarDbBase) DeletePolarDB() {
 	}).Namespace("default").Delete(context.TODO(), this.Name, MetaV1.DeleteOptions{})
 	if err != nil {
 		fmt.Println(err)
-		log.Fatalln(err)
+		return err
 	}
+	return nil
 }
 
 func (this *PolarDbBase) InjectDynamicClient(client dynamic.Interface) *PolarDbBase {
