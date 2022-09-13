@@ -41,6 +41,7 @@ func ListPod(client dynamic.Interface, labels map[string]string) []CoreV1.Pod {
 func GetLogs(podName string) (string, error) {
 
 	var line int64 = 15
+	//logs是pod的子资源，第二级的子资源，无法使用动态客户端
 	req := client.ClientSet.CoreV1().Pods("default").GetLogs(podName, &CoreV1.PodLogOptions{
 		TailLines: &line,
 		Follow:    true,
